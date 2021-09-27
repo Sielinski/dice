@@ -1,0 +1,335 @@
+# how many times do you need to roll a die before getting at least one of
+# every side?
+
+# monte carlo simulation
+# number of reps
+repititions <- 5000
+
+# size of population
+n <- 6
+
+# create a vector for the simulation results
+results <- rep(NA, repititions)
+
+# conduct the simulation
+set.seed(42)
+
+for (i in 1:repititions) {
+
+  # create a data frame that tracks number of times each side is rolled
+  die <- data.frame(pips = 1:n,
+                    cnt = 0)
+  
+  # roll the die and keep track of the number of times each side comes up
+  # until all sides have come up
+  while (any(die$cnt == 0)) {
+    roll <- sample(die$pips, 1)
+    die$cnt[roll] <- die$cnt[roll] + 1
+  }
+  
+  # record the total number of rolls
+  results[i] <- sum(die$cnt)
+}
+
+# look at the probability density function (continuous)
+pdf <- density(results)
+plot(pdf)
+
+# the 50% answer
+continous_mean <- mean(results)
+continuous_mode <- pdf$x[which.max(pdf$y)]
+max(pdf$y)
+
+# std error of the mean 
+# see 'conf_int.R'
+std_err <- sd(results) / sqrt(repititions)
+
+# mode of the pdf, the most likely number of rolls needed 
+continuous_mode
+which.max(table(results))
+
+# look at the probability mass function (discrete)
+hist(results, breaks = max(results) - n)
+
+# look at the quantiles (which are all discrete)
+quantile(results, probs = c(0.3, 0.4, 0.5, 0.6))
+
+discrete_mode <- table(results)[which.max(table(results))] |>
+  names() |>
+  as.numeric()
+
+discrete_mean <- quantile(results, probs = 0.5) |>
+  as.numeric()
+
+sum(results <= discrete_mode) / length(results)
+sum(results <= discrete_mean) / length(results)
+
+max(results)
+min(results)
+
+boxplot(results)
+
+
+##########################
+# geometric distribution #
+##########################
+
+# how many times do you have to roll a die before you get one of the 
+# remaining faces (i.e., the target_values)
+
+target_values <- c(1, 2, 4, 5)
+
+# monte carlo
+repititions <- 5000
+tries <- rep(NA, repititions)
+
+for (i in 1:repititions) {
+  cnt <- 0 
+  while(!(sample(1:n, 1) %in% target_values)) {
+    cnt <- cnt + 1
+  }
+  tries[i] <- cnt + 1
+}
+
+# plot the table and density chart
+# note that the mode of any geometric distribution is 1
+# the number of times that you need to roll the die is always 1 
+plot(table(tries) / repititions)
+
+mean(tries)
+#table(tries)
+(table(tries) / length(tries))[1:6] 
+(table(tries) / length(tries))[1:6] |> sum()
+
+
+# function to calculate probability mass function of geometric distribution
+# basically, joint probability of not getting the target result until x
+# where
+# x = number of trials
+# p = probability 
+geom_pmf <- function(x, p = 1/6) {
+  p * (1 - p) ^ (x - 1)
+}
+
+# compare the results of the formula to monte carlo simulation
+geom_pmf(1:6, p = length(target_values) / 6)
+table(tries)[1:6] / repititions
+
+
+##########################################
+# pmf for each number of remaining faces # 
+##########################################
+
+pip_cnt <- n
+max_x <- 10  # x-axis of density chart
+# 10 is the most number of rolls that we can make for any 1 face
+
+# matrix of results
+pmf = matrix(rep(0, pip_cnt * max_x), nrow = pip_cnt)
+
+# prob for each number of remaining faces
+probs <- (pip_cnt:1) / pip_cnt
+
+# calculate the pmf for the number of rolls for each number of 
+# remaining faces
+for (i in 1:pip_cnt) {
+  pmf[i, ] <- geom_pmf(1:max_x, probs[i])
+}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# look at all PMFs
+pmf_df <- as.data.frame(pmf) |>
+  mutate(face_cnt = row_number()) |>
+  pivot_longer(cols = !face_cnt,
+               names_to = 'roll_cnt',
+               values_to = 'probability') |>
+  mutate(roll_cnt = as.numeric(substring(roll_cnt, 2))) 
+
+ggplot(pmf_df, aes(x = roll_cnt, y = probability, fill = as.factor(face_cnt))) +
+  geom_col() + 
+  facet_grid(. ~ face_cnt)
+
+
+######################
+# Calculate the mode # 
+######################
+
+# see https://math.stackexchange.com/questions/1219107/conditional-probability-in-geometric-distribution#:~:text=%20Conditional%20Probability%20in%20Geometric%20Distribution%20%201,can%20take%20tests%20until%20getting%20licensed.%20More%20
+
+# Our mean is 15, and since the mode will be less than the median, the mode 
+# will occur at <= 15 total rolls. Given 15 total rolls and 6 faces, the 
+# we most times that we can roll to find any one pip is 10 
+# (e.g., 1, 1, 1, 1, 1, 10), so we can shift 1:10 to 0:9 and use regular 
+# base-10 numbers as our indices to permutations. Using the same example, 
+# the shifted pip counts would be 0, 0, 0, 0, 0, 9, and the max value is 
+# likewise shifted by 6 (i.e., once for each pip). 
+# Finally, since the first pip is always found on the first roll, we only 
+# need to look at numbers 5-digit numbers. 
+# Find all permutations of a 5-digit base-10 numbers that add up to <= 9
+
+# permutations between 6 and 15 (the ceiling of the mean)
+digitsum <- function(x) sum(floor(x / 10 ^ (0:(nchar(x) - 1))) %% 10)
+digitsum <- Vectorize(digitsum)
+
+up_shift <- function(x){
+  # same as digitsum function, but no sum and add 1 to up shift
+  digits_mirror <- floor(x / 10 ^ (0:(nchar(x) - 1))) %% 10 + 1
+  # create a results vector
+  digits <- rep(1, 5)
+  # reverse digit order and right-shift into results
+  digits[(6 - nchar(x)):5] <- digits_mirror[nchar(x):1]
+  # pad with a 1
+  c(1, digits)
+}
+up_shift <- Vectorize(up_shift)
+
+joint_prob <- function(x) {
+  # probability of needing exactly x[i] rolls to get the i-th new face. E.g., 
+  # needing exactly 2 rolls to get the 4th new face (after getting 3 faces)
+  prob_hit <- rep(NA, 6)
+  
+  for (i in 1:6) {
+    prob_hit[i] <- pmf[i, x[i]]
+  }
+  
+  # conditional probability
+  prod(prob_hit)
+} 
+
+target_permuations <- c(0, which(digitsum(1:99999) <= 9))
+
+target_shifted <- up_shift(target_permuations)
+
+dat <- data.frame(rolls = apply(target_shifted, 2, sum), 
+           prob = apply(target_shifted, 2, joint_prob)
+)
+
+# we cover ~2/3 of the total probability  
+sum(dat$prob)
+
+# summarize the conditional probabilities for all possibilities
+by(dat, dat$rolls, function(x) sum(x$prob)) #|> as.numeric()
+
+dat |>
+  group_by(rolls) |>
+  summarize(sum_prob = sum(prob))
+
+# compare the calculated probabilities to the monte carlo results
+(table(results) / sum(table(results)))[1:10]
+
+# getting a new face on the first roll (i.e., 6 total rolls) is the most 
+# likely permutation 
+dat[which.max(dat$prob), ]
+
+# however, there's only 1 way to get a new face on every roll, and 5 ways 
+# of having to roll twice for at least one new face (i.e., 7 total rolls)
+dat |>
+  filter(rolls == 6 | rolls == 7)
+
+# and the sum of probabilities for 7 rolls is higher 
+dat |>
+  filter(rolls == 6 | rolls == 7) |>
+  group_by(rolls) |>
+  summarize(sum_prob = sum(prob))
+
+# sum of probabilities for rolls ≤ mode
+rolls_sum_prob <- dat |>
+  group_by(rolls) |>
+  summarize(sum_prob = sum(prob)) 
+
+rolls_mode <- rolls_sum_prob[which.max(rolls_sum_prob$sum_prob), ]$rolls
+
+rolls_sum_prob |>
+  filter(rolls <= rolls_mode) |>
+  summarize(sum_prob = sum(sum_prob))
+
+dat |>
+  group_by(rolls) |>
+  summarize(count = n())
+
+
+#######################
+## Formula/Algorithm ##
+#######################
+
+# from https://math.stackexchange.com/questions/28905/expected-time-to-roll-all-1-through-6-on-a-die
+n * sum(1 / (1:n))
+
+# a rough approximation for the mode (for large n)
+# from http://archives.math.utk.edu/ICTCM/VOL27/A016/paper.pdf#:~:text=In%20the%20classic%20Coupon%20Collector%27s%20Problem%2C%20a%20collection,geometric%20random%20variables%20and%20sums%20of%20random%20variables.
+# p 137
+mean_approx <- function(n) {
+  n * log(n)
+}
+
+# p 141
+mean_approx_refined <- function(n) {
+  n * log(n) + (-digamma(1)) * n
+}
+
+# for large n
+# p 145
+mode_approx <- function(n) {
+  n * log(n) + n * log(log(n))
+}
+
+mean_approx(n)
+mean_approx_refined(n)
+mean(results)
+
+
+# probability of d different unique results, completed on the k-th attempt
+# where
+# d = number of different results (e.g., coupons, faces, etc.)
+# k = number of attempts (e.g., draws, rolls, etc.)
+# n = size of complete set
+permutations_d <- function(i, d, k) {
+  (-1) ^ (i + 1) * choose(d, i) * i * (d - i) ^ (k - 1)
+}
+
+prob_d_k_exact <- function(d, k, n) {
+  if (d > k | d > n)
+    return(NA)
+  permutations_d_sum <- permutations_d(1:(d - 1), d, k) |>
+    sum()
+  choose(n, d) / (n ^ k) * permutations_d_sum
+}
+
+prob_d_k_exact <- Vectorize(prob_d_k_exact)
+
+prob_d_k_sum <- function(d, k, n){
+  sum(prob_d_k_exact(d, d:k, n))
+}
+
+prob_d_k_sum <- Vectorize(prob_d_k_sum)
+
+
+# test that formulas work 
+d <- 4
+k <- 16
+n <- 6
+
+prob_d_k_exact(d, k, n) 
+
+prob_d_k_exact(d, d:k, n) |> round(6)
+prob_d_k_exact(d, d:k, n) |> plot()
+prob_d_k_sum(d, d:k, n) |> plot()
+
+sample(1:n, 9, replace = T) |> 
+  unique() |> 
+  length()
+
+d <- 6
+k <- 8
+n <- 6
+
+prob_d_k_exact(d, d:k, n)
+prob_d_k_sum(d, k, n)
+
+#rolls_sum_prob$sum_prob[which(rolls_sum_prob$rolls <= k)] |> sum()
+
+prob_d_k_sum(d, k, n) - prob_d_k_sum(d, k - 1, n)
+prob_d_k_exact(d, k, n)
