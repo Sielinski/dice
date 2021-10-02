@@ -1,0 +1,329 @@
+---
+title: "Six sides of a die"
+author: "Ron Sielinski"
+date: "9/28/2021"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include = FALSE, message = FALSE, warning = FALSE}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+#library(knitr)
+```
+
+## The wrong question
+Microsoft has long discouraged the use of brain teasers as interview questions. 
+
+For similar reasons, I'm increasingly reluctant to use traditional statistical problems as part of a data science interview.   
+
+The temptation is still there. Traditional problems :
+
+* seem simple on the surface 
+* their solutions often have multiple layers
+* test a candidate's knowledge of fundamentals
+
+* having studied the problems, interviews know the answer, which often seem obvious in retrospect 
+* often only allow a candidate only one path to demonstrate their knowledge
+* most problems that a data scientist will require them to think slow
+
+## The problem
+
+How many times do you need to roll a six-sided die before you get each side at least once?
+
+The question is a variant of the "coupon collector's problem". In this context, "coupon" is a generic term, referring to randomly distributed items like baseball cards or Happy Meal toys that are designed to be collected (and drive sales). The problem is determining how many of the packs of cards or Happy Meals a person would typically need to purchase to complete the full set.
+
+Using a die makes the problem a bit more approachable because a person only needs to "collect" the six sides of a die.
+
+## The solution
+
+The most straightforward answer is recursive in nature. The first time you roll the die, you need six of the six possible sides, 6/6, so the probability of getting a new side is 100%.
+
+The next roll the die, you still need five sides, so the probability of getting a new side is 5/6. Conveniently, the average number rolls that it will take to get a new side is the inverse of the probability, so 6/5 or 1.2. 
+
+After collecting the first two sides, the probability of getting a third new side decreases to 4/6, and the average number of rolls that it will take is 6/4 or 1.5. Following that same pattern for all six sides and adding the resulting the averages gives us the answer: 
+
+```{r}
+6/6 + 6/5 + 6/4 + 6/3 + 6/2 + 6/1
+```
+Expressed as a formula, the pattern can be generalized to a die of any number (<i>n</i>) of sides:
+
+$n\sum_{1}^{n}\frac{1}{i}$
+
+The mean_prob function is an implementation of the formula in R:
+```{r}
+mean_prob <- function(n){
+  n * sum(1/(1:n))
+}
+
+mean_prob(6)
+```
+One way to confirm our result is through simulation. We can roll a digital die thousands of times and calculate the average number of rolls that it takes to collect all six sides. 
+
+```{r}
+# n = number of sides
+# repetitions = number of times to repeat the simulation
+# seed = random seed
+simulation <- function(n = 6, repititions = 1000, rnd_seed = 42) {
+  # create a vector to hold simulation results
+  results <- rep(NA, repititions)
+  
+  # set a seed to ensure the results are repeatable
+  set.seed(rnd_seed)
+  
+  # conduct the simulation
+  for (i in 1:repititions) {
+    # create a vector to track how many times each side is rolled
+    die <- rep(0, 6)
+    
+    # roll the die and keep track of the number of times each side comes up
+    # until all sides have come up
+    while (any(die == 0)) {
+      roll <- sample(n, 1)
+      die[roll] <- die[roll] + 1
+    }
+    
+    # record the result (i.e., the total number of rolls)
+    results[i] <- sum(die)
+  }
+  
+  return(results)
+}
+
+results <- simulation(n = 6, repititions = 1000, rnd_seed = 42)
+```
+
+The mean of our simulation should be reasonably close to the result of our formula, which it is. 
+
+```{r}
+mean(results)
+```
+Looking at the distribution of our results as a bar chart offers additional insights. 
+
+```{r echo = FALSE}
+# count the number of times that each number of rolls occured 
+results_summary <- data.frame(number_of_rolls = results) |>
+  group_by(number_of_rolls) |>
+  summarize(frequency = n()) 
+
+# identify the mode
+results_summary$mode <-
+  results_summary$frequency == max(results_summary$frequency)
+
+# plot the results
+ggplot(results_summary, aes(x = number_of_rolls, y = frequency)) +
+  geom_col(aes(fill = mode)) + 
+  geom_vline(xintercept = 14.7, col = 'black', linetype = 'dotted')
+
+```
+
+First, we're reminded that we can't roll a die 14.7 times (the dotted vertical line). We're really only able to roll a die 14 or 15 times, but the average number of rolls that it will take to get all six sides---over many, many attempts---will be 14.7. 
+
+Second, the minimum number of rolls is at least six, but it sometimes takes a very large number of rolls to get every side, so our distribution skews to the right.  
+
+```{r}
+max(results)
+```
+```{r}
+skew <- function(x, ...) {
+  mean_scaled <- x - mean(x, ...)
+  mean(mean_scaled ^ 3) / sd(x, ...) ^ 3
+}
+
+skew(results)
+```
+Finally, the mode---the most common number of times that we'd have to roll a die before getting all six sides---is actually less than 14 or 15. In this case, it's only 10 rolls. 
+
+```{r}
+table(results) |> 
+  which.max() |>
+  names() |>
+  as.numeric()
+```
+## Calculating the mode
+
+Because of the difference between mean and mode, we need to clarify what is meant by "how many times": The average number of rolls or the most likely number of rolls. If we're more interested in the latter, we can't rely on a single simulation to identify the mode. In fact, if we repeat the same simulation with  different seed, we often get different results. 
+
+```{r}
+# repeat the simulation
+results <- simulation(n = 6, repititions = 1000, rnd_seed = 59)
+```
+
+```{r echo = FALSE}
+# regenerate the distrubution chart 
+# count the number of times that each number of rolls occured 
+results_summary <- data.frame(number_of_rolls = results) |>
+  group_by(number_of_rolls) |>
+  summarize(frequency = n()) 
+
+# identify the mode
+results_summary$mode <-
+  results_summary$frequency == max(results_summary$frequency)
+
+# plot the results
+ggplot(results_summary, aes(x = number_of_rolls, y = frequency)) +
+  geom_col(aes(fill = mode)) #+ 
+  #geom_vline(xintercept = 14.7, col = 'black', linetype = 'dotted')
+```
+
+The mean is similar:
+
+```{r}
+mean(results)
+```
+But the mode increased from 10 to 12:
+
+```{r}
+table(results) |> 
+  which.max() |>
+  names() |>
+  as.numeric()
+```
+
+Calculating an expected value for the mode is much more complicated than the mean. As a starting point, consider the probability for getting a new side. 
+
+Again, getting the first new side is trivial because the probability that you'll get it on the first role is 100%.  
+
+The second side is a bit more interesting, because the probability that you'll get a new side on any <i>individual</i> role is 5/6 or 83%. It doesn't matter if it's your first roll or your tenth: The probability is always 83%. Conversely, the probability of not getting it is 17% (i.e., 100% - 83%). 
+
+If you want to know the probability of getting that second side on <i>exactly</i> the second roll, you have to combine the probability of <i>not</i> getting a new face on the first roll with the probability of getting a new face on the second roll. The joint probability is 17% * 83%, which rounds to 14%. 
+
+```{r}
+(1/6 * 5/6) |>
+  round(2)
+```
+The probability of getting the second new face on the third roll is 17% * 17% * 83%, which rounds to 2%. 
+```{r}
+(1/6 * 1/6 * 5/6) |>
+  round(2)
+```
+## The geometric distribution
+
+The geometric distribution does exactly this: It calculates the probability of a success after <i>n</i> attempts. 
+
+Extending this logic, we can calculate the probability of getting a new face on rolls 1 - 10 for each new face: 
+
+```{r}
+pip_cnt <- 6
+max_x <- 10  
+
+pmf <- matrix(pip_cnt:1, nrow = pip_cnt) |> 
+  apply(1, function(x) dgeom(0:max_x, x/pip_cnt)) |>
+  t()
+
+pmf |> 
+  round(2) 
+```
+
+Plotting geometric distribution for each new face offers another interesting insight: The highest probability always occurs on the first roll. This is a known property of the geometric distribution: The mode is 1.
+
+```{r echo = FALSE}
+# look at all PMFs
+pmf_df <- as.data.frame(pmf) |>
+  mutate(face_cnt = row_number()) |>
+  pivot_longer(cols = !face_cnt,
+               names_to = 'roll_cnt',
+               values_to = 'probability') |>
+  mutate(roll_cnt = as.numeric(substring(roll_cnt, 2))) 
+
+ggplot(pmf_df, aes(x = roll_cnt, y = probability, fill = as.factor(face_cnt))) +
+  geom_col() + 
+  facet_grid(. ~ face_cnt)
+
+```
+But that raises the question: If the mode for each new face is one, why isn't the mode for all six faces equal to six (i.e., 6 * 1)?
+
+It is, actually, but only if you look at the permutations of possible roll counts separately.
+
+There's only one way to roll the die 6 times: 
+
+1 + 1 + 1 + 1 + 1 + 1 = 6. 
+
+But there are multiple ways to roll 7 times
+
+1 + 2 + 1 + 1 + 1 + 1 = 7  
+1 + 1 + 2 + 1 + 1 + 1 = 7  
+ .  
+ .  
+ .   
+1 + 1 + 1 + 1 + 1 + 2 = 7  
+
+The position of the second roll in the sequence is important, because the probability changes depending on the side that you're trying to get (second, third, etc.). For example, the probability of having to roll twice to get a <i>second</i> face is 0.003, but the probability of having to roll twice to get a <i>third</i> face is 0.005. 
+
+```{r}
+# 1 + 2 + 1 + 1 + 1 + 1 = 7
+(6/6 * (1/6 * 5/6) * 4/6 * 3/6 * 2/6 * 1/6) |>
+  round(3)
+
+# 1 + 1 + 2 + 1 + 1 + 1 = 7
+(6/6 * 5/6 * (2/6 * 4/6) * 3/6 * 2/6 * 1/6) |>
+  round(3)
+
+```
+
+Note, too, the probability of the only six-roll option (0.015) is greater than than any of the seven-roll permutations, but less than the <i>sum</i> of the seven-roll permutations (0.039). 
+
+```{r}
+# 6-roll probability
+prod(pmf[, 1]) |>
+  round(3)
+
+# 7-roll permutations
+(prod(pmf[, 1]) * (1 - pmf[, 1])) |>
+  round(3)
+
+# sum of the 7-roll permutations
+(prod(pmf[, 1]) * (1 - pmf[, 1])) |>
+  sum() |>
+  round(3)
+
+```
+
+Calculating the probability for any number (<i>k</i>) of total rolls requires us to aggregate the probabilities for the permutations of rolls that add up to <i>k</i>. That's relatively easy for <i>k</i> = 7 (which we just did), but it gets more complicated for larger values of <i>k</i>, simply because the number of permutations increases rapidly.
+
+```{r echo = FALSE, results = 'asis'}
+tabl <- '
+| Rolls (k) | Permutations |
+|:---------:|:------------:|
+| 6  |   1 |
+| 7  |   5 |
+| 8  |  15 |
+| 9  |  35 |
+| 10 |  70 |
+| 11 | 126 |
+| 12 | 210 |
+| 13 | 330 |
+| 14 | 495 |
+| 15 | 715 |
+'
+cat(tabl)
+```
+
+Fortunately, there's a formula that calculates the aggregate probability without needing to iterate through the probabilities of the individual permutations:
+
+$P(d,\ k,\ n)\ =\ \frac{\binom{n}{d}}{n^k}\sum_{i\ =\ 0}^{d}{{(-1)}^i\binom{d}{i}}{(d\ -\ i)}^k$
+
+where 
+
+<i>d</i> = distinct items collected (where <i>d</i> ≤ <i>n</i> and <i>d</i> ≤ <i>k</i>)  
+<i>k</i> = attempts (i.e., rolls)  
+<i>n</i> = size of the complete set (i.e., sides on the die)  
+
+## Conclusion
+
+Ostensibly, the coupon collector's problem is wonderful because it tests a person's knowledge of many of the basics:
+
+* probability
+* descriptive statistics
+* non-Gaussian distributions
+* the method of moments
+* continuous vrs discrete variables 
+* combinatorics
+
+It also requires a person recognize that the obvious solution might not be right answer to the question, to clarify the ask (i.e., mean vrs mode), and to think through the problem very carefully. 
+
+However

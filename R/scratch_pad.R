@@ -79,3 +79,4 @@ p_hat(tries)
 p <- .3
 geom_exp <- 1 / p
 geom_var <- (1 - p) / p ^ 2  
+

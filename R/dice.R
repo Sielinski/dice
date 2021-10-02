@@ -1,9 +1,13 @@
 # how many times do you need to roll a die before getting at least one of
 # every side?
 
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
 # monte carlo simulation
 # number of reps
-repititions <- 5000
+repititions <- 1000
 
 # size of population
 n <- 6
@@ -12,7 +16,7 @@ n <- 6
 results <- rep(NA, repititions)
 
 # conduct the simulation
-set.seed(42)
+set.seed(16)
 
 for (i in 1:repititions) {
 
@@ -32,29 +36,39 @@ for (i in 1:repititions) {
 }
 
 # look at the probability density function (continuous)
-pdf <- density(results)
-plot(pdf)
+#pdf <- density(results)
+#plot(pdf)
 
 # the 50% answer
-continous_mean <- mean(results)
-continuous_mode <- pdf$x[which.max(pdf$y)]
-max(pdf$y)
+(continous_mean <- mean(results))
+#continuous_mode <- pdf$x[which.max(pdf$y)]
+#max(pdf$y)
 
 # std error of the mean 
 # see 'conf_int.R'
-std_err <- sd(results) / sqrt(repititions)
+#std_err <- sd(results) / sqrt(repititions)
 
 # mode of the pdf, the most likely number of rolls needed 
-continuous_mode
-which.max(table(results))
+#continuous_mode
+#which.max(table(results))
 
-# look at the probability mass function (discrete)
+# look at the distribution of results as a histogram 
 hist(results, breaks = max(results) - n)
+abline(v = continous_mean, col = 'red')
+
+data.frame(rolls = results) |>
+  group_by(rolls) |>
+  summarize(cnt = n()) |>
+  ggplot(aes(x = rolls, y = cnt)) +
+  geom_col() + 
+  geom_vline(xintercept = continous_mean, col = 'red')
+
 
 # look at the quantiles (which are all discrete)
 quantile(results, probs = c(0.3, 0.4, 0.5, 0.6))
 
-discrete_mode <- table(results)[which.max(table(results))] |>
+discrete_mode <- table(results) |>
+  which.max() |>
   names() |>
   as.numeric()
 
@@ -102,17 +116,16 @@ mean(tries)
 (table(tries) / length(tries))[1:6] |> sum()
 
 
-# function to calculate probability mass function of geometric distribution
-# basically, joint probability of not getting the target result until x
-# where
-# x = number of trials
+# probability for a geometric distribution
+# i.e., probability of success on the n-th attempt
+# n = number of trials
 # p = probability 
-geom_pmf <- function(x, p = 1/6) {
-  p * (1 - p) ^ (x - 1)
+geom_prob <- function(n, p = 1/6) {
+  p * (1 - p) ^ (n - 1)
 }
 
 # compare the results of the formula to monte carlo simulation
-geom_pmf(1:6, p = length(target_values) / 6)
+geom_prob(1:6, p = length(target_values) / 6)
 table(tries)[1:6] / repititions
 
 
@@ -125,7 +138,7 @@ max_x <- 10  # x-axis of density chart
 # 10 is the most number of rolls that we can make for any 1 face
 
 # matrix of results
-pmf = matrix(rep(0, pip_cnt * max_x), nrow = pip_cnt)
+pmf <- matrix(rep(0, pip_cnt * max_x), nrow = pip_cnt)
 
 # prob for each number of remaining faces
 probs <- (pip_cnt:1) / pip_cnt
@@ -133,12 +146,8 @@ probs <- (pip_cnt:1) / pip_cnt
 # calculate the pmf for the number of rolls for each number of 
 # remaining faces
 for (i in 1:pip_cnt) {
-  pmf[i, ] <- geom_pmf(1:max_x, probs[i])
+  pmf[i, ] <- geom_prob(1:max_x, probs[i])
 }
-
-library(ggplot2)
-library(tidyr)
-library(dplyr)
 
 # look at all PMFs
 pmf_df <- as.data.frame(pmf) |>
@@ -158,6 +167,9 @@ ggplot(pmf_df, aes(x = roll_cnt, y = probability, fill = as.factor(face_cnt))) +
 ######################
 
 # see https://math.stackexchange.com/questions/1219107/conditional-probability-in-geometric-distribution#:~:text=%20Conditional%20Probability%20in%20Geometric%20Distribution%20%201,can%20take%20tests%20until%20getting%20licensed.%20More%20
+
+# this only works for n = 6
+# a more generalized solution is required for other values
 
 # Our mean is 15, and since the mode will be less than the median, the mode 
 # will occur at <= 15 total rolls. Given 15 total rolls and 6 faces, the 
@@ -256,7 +268,9 @@ dat |>
 #######################
 
 # from https://math.stackexchange.com/questions/28905/expected-time-to-roll-all-1-through-6-on-a-die
-n * sum(1 / (1:n))
+mean_prob <- function(n) {
+  n * sum(1 / (1:n))
+}
 
 # a rough approximation for the mode (for large n)
 # from http://archives.math.utk.edu/ICTCM/VOL27/A016/paper.pdf#:~:text=In%20the%20classic%20Coupon%20Collector%27s%20Problem%2C%20a%20collection,geometric%20random%20variables%20and%20sums%20of%20random%20variables.
@@ -273,13 +287,16 @@ mean_approx_refined <- function(n) {
 # for large n
 # p 145
 mode_approx <- function(n) {
-  n * log(n) + n * log(log(n))
+  n * log(n) + (n * log(log(n)))
 }
 
+n <- 50
+
+mean_prob(n)
 mean_approx(n)
 mean_approx_refined(n)
 mean(results)
-
+mode_approx(n)
 
 # probability of d different unique results, completed on the k-th attempt
 # where
@@ -313,6 +330,7 @@ k <- 16
 n <- 6
 
 prob_d_k_exact(d, k, n) 
+prob_d_k_exact(6, 6, 6)
 
 prob_d_k_exact(d, d:k, n) |> round(6)
 prob_d_k_exact(d, d:k, n) |> plot()
@@ -323,7 +341,7 @@ sample(1:n, 9, replace = T) |>
   length()
 
 d <- 6
-k <- 8
+k <- 12
 n <- 6
 
 prob_d_k_exact(d, d:k, n)
@@ -333,3 +351,8 @@ prob_d_k_sum(d, k, n)
 
 prob_d_k_sum(d, k, n) - prob_d_k_sum(d, k - 1, n)
 prob_d_k_exact(d, k, n)
+
+n <- 44
+prob_d_k_exact(n, floor(mean_approx(n)):ceiling(mean_prob(n)), n) #|> which.max()
+
+permutations_d(1:n-1, n, discrete_mode)
