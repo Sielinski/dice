@@ -273,7 +273,7 @@ mean_prob <- function(n) {
 }
 
 # a rough approximation for the mode (for large n)
-# from http://archives.math.utk.edu/ICTCM/VOL27/A016/paper.pdf#:~:text=In%20the%20classic%20Coupon%20Collector%27s%20Problem%2C%20a%20collection,geometric%20random%20variables%20and%20sums%20of%20random%20variables.
+# from http://archives.math.utk.edu/ICTCM/VOL27/A016/paper.pdf
 # p 137
 mean_approx <- function(n) {
   n * log(n)
