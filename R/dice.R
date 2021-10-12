@@ -356,3 +356,46 @@ n <- 44
 prob_d_k_exact(n, floor(mean_approx(n)):ceiling(mean_prob(n)), n) #|> which.max()
 
 permutations_d(1:n-1, n, discrete_mode)
+
+
+#####################################################
+## how many permutations add up to specific number ##
+#####################################################
+
+# the number of permutations that add up to a fixed number rolls
+# where 
+# sum_all = sum of all digits (i.e., number of rolls)
+# digits_cnt = number of remaining digits 
+
+cnt_recursive <- function(sum_all, digits_cnt) {
+  # on the last digit, so exit recursion 
+  if (digits_cnt == 1) return(1)
+  
+  # the largest value in any position (x) is 
+  # (sum of all remaining digits) - (count of remaining digits) + 1
+  x_max <- sum_all - digits_cnt + 1
+  
+  # count of permutations (reset at each level of recursion)
+  cnt <- 0
+  
+  for (i in 1:x_max)
+    cnt <- cnt + cnt_recursive(sum_all - i, digits_cnt - 1)
+  
+  return(cnt)
+}
+
+cnt_recursive <- Vectorize(cnt_recursive)
+
+n <- 6
+k <- 7
+# the number of rolls that it takes to get the first
+# side is always 1 (i.e., there are no permutations), 
+# so subtract 1 from both k and n
+cnt_recursive(k - 1, n - 1) 
+
+data.frame(k = c(6:14, 51)) |>
+  mutate(perms = cnt_recursive(k - 1, n - 1))
+
+k <- 51
+cnt_recursive(k - 1, n - 1) 
+

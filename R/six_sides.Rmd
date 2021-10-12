@@ -3,9 +3,9 @@ title: "Six sides"
 author: "Ron Sielinski"
 date: "9/28/2021"
 output:
-  word_document: default
-  pdf_document: default
   html_document: default
+  pdf_document: default
+  word_document: default
 ---
 
 ```{r setup, include = FALSE}
@@ -19,15 +19,15 @@ library(dplyr)
 #library(knitr)
 ```
 
-Preparing for a data science interview is a daunting prospect, if only because the range of questions that might get asked is so broad: Machine Learning (ML) algorithms, linear algebra, deep learning architectures, SQL syntax, data engineering techniques, MLOps, and more. 
+Preparing for a data science interview is a daunting prospect, if only because the potential range of topics is so broad: Machine Learning (ML) algorithms, linear algebra, deep learning architectures, SQL syntax, data engineering techniques, MLOps, and more. 
 
-On the spectrum of possible questions, statistical problems land somewhere between brain teasers and what's on LeetCode. 
+On the spectrum of questions that might get asked, statistical problems land somewhere between brain teasers and what's on LeetCode. 
 
 Like brain teasers, statistical problems often start with familiar scenarios---flipping coins, rolling dice, drawing cards---making the problems seem simple on the surface. But their familiarity belies their complexity. By design, job candidates need to think carefully through these types of problems, exploring possibilities and shifting perspectives, before they're able to find the correct solutions. And much like programming challenges on LeetCode, statistical problems often require the creative application of core concepts (e.g., calculating probabilities, identifying distribution families, estimating confidence intervals, on so on), testing candidates' basic knowledge and their ability to put theory into practice.
 
 Nonetheless, I find myself increasingly reluctant to use teaser-like problems in data science interviews.
 
-I have several reasons, starting with the fact that Microsoft has long discouraged the use of brain teasers to evaluate candidates. Given the question-answer structure of most interviews, candidates often feel like they have the briefest of moments---the pause in normal conversation---to respond. But brain teasers are only easy when you already know the answers, otherwise they take time to puzzle through. The more time that candidates take to think through their answers, the more pressure they're likely to feel and the more difficult it becomes for them to focus on solutions. The resulting spiral of negativity undermines the fundamental purpose of teasers, which is to evaluate candidates' creativity and problem-solving skills, not their ability to provide on-the-spot answers. 
+I have several reasons, starting with the fact that Microsoft has long discouraged the use of brain teasers to evaluate candidates. Given the question-answer structure of most interviews, candidates often feel like they have the briefest of moments---the pause in normal conversation---to respond. But brain teasers are only easy when you already know the answers, otherwise they take time to puzzle through. And the more time that candidates take to think through their answers, the more pressure they're likely to feel and the more difficult it becomes for them to focus on solutions. The resulting spiral of negativity undermines the fundamental purpose of teasers, which is to evaluate candidates' creativity and problem-solving skills, not their ability to provide on-the-spot answers. 
 
 Similarly, teaser-like problems often have just one solution, which limits candidates' opportunity to demonstrate the depth and breadth of their skills. This is a particular challenge given the ever-expanding nature of the data science discipline.  
 
@@ -36,71 +36,70 @@ Similarly, teaser-like problems often have just one solution, which limits candi
 
 Consider an example: How many times do you need to roll a six-sided die before you get each side at least once?
 
-The question is a variant of the "coupon collector's problem". To be clear, a "coupon collector" isn't someone who's looking to save money on groceries. In this context, coupons are randomly distributed items (like baseball cards or Happy Meal toys) that are designed to be collected. The problem is to calculate how many packs of cards or Happy Meals a person would typically have to acquire to complete the entire collection.
+The question is a variant of the "coupon collector's problem." To be clear, a "coupon collector" isn't someone who's looking to save money on groceries. In this context, coupons are randomly distributed items (like baseball cards or Happy Meal toys) that are designed to be collected. The problem is to calculate how many packs of cards or Happy Meals a person would typically need to acquire to complete an entire collection.
 
 Using a six-sided die makes the problem a bit more approachable because a die is more universally familiar than baseball cards and Happy Meals, and the size of the collection---only six sides---reduces the numeric complexity.
 
 
-### Side-wise probabilites
+### The start of a solution
 
 Most candidates will start by determining the probabilities of getting each new side. 
 
-The first time you roll the die, you're certain to get a new side: The probability is 6/6 (100 percent).  
+The first time you roll the die, you're certain to get a new side, so the probability is 6/6 (<i>p</i> = 100%).  
 
-The next roll of the die, you'll still need five sides, so the probability of getting a new side decreases to 5/6 (83 percent). Following that same pattern, the probability of getting the third new side is 4/6 (67 percent). 
+The next roll of the die, you'll still need five sides, so the probability of success decreases to 5/6 (<i>p</i> = 83%). Following that same pattern, the probability of getting the third new side is 4/6 (<i>p</i> = 67%). 
 
-The probabilities for all six sides is easy to calculate: 
+Fundamentally, each new side is its own Bernoulli trial with a  probability of success (<i>p</i>) and failure (1 - <i>p</i>): 
 
-```{r echo = FALSE, results = 'asis'}
-tabl <- '
-| Side | Probability |
-|:---------:|:------------:|
-| 1st | 6/6 (100%) |
-| 2nd | 5/6 (83%) |
-| 3rd | 4/6 (67%) |
-| 4th | 3/6 (50%) |
-| 5th | 2/6 (33%) |
-| 6th | 1/6 (17%) |
-'
-cat(tabl)
+```{r}
+# number of sides
+n <- 6
+
+# data frame of probabilities
+trials <- data.frame(side = 1:n) |>
+  mutate(success = (n - side + 1) / n, failure = 1 - success) 
+
+trials |> 
+  round(2)
+
 ```
-### Role of the geometric distribution
 
-The first real challenge is figuring out how to combine these multiple probabilities into a single result. More specifically, we need to better understand the relationship between probabilities and the number of rolls. 
+### The geometric distribution
 
-The probability of getting the first side is 100 percent, so it always takes just one roll. 
+The first real challenge is figuring out how to combine these multiple probabilities into a single result. More specifically, we need to determine the relationship between the probabilities and the number of rolls. 
 
-The second side is a bit more interesting. Every attempt to get the second side--every roll of the die---is independent, so the probability that you'll get a second new side on any <i>individual</i> roll is 83 percent. It doesn't matter if it's your first roll or your tenth: The probability is always 83 percent. 
+Again, the probability of getting the first side is 100 percent, so it always takes just one roll. 
+
+The second side is a bit more interesting. Every attempt to get a second new side---every roll of the die---is independent, so the probability that you'll get one on any <i>individual</i> roll is 83 percent. It doesn't matter if it's your first roll or your tenth: The probability is always 83 percent. 
 
 But how many rolls will it take?
 
-To answer that question, we have to determine the probability of every number of rolls that it might take to get a second new side. For example, to calculate the probability of getting it on <i>exactly</i> the second roll, you combine the probability of getting a new face (83 percent) <i>conditioned on</i> the probability of <i>not</i> getting it on the first roll, (17 percent, which the difference between 100 percent and 83 percent). This---the conditional probability---is simply the product of 83 percent and 17 percent, which rounds to 14 percent. 
+Before we can answer that question, we need to accept that you might <i>never</i> get a new side: It might take an infinite number of rolls. 
+
+That said, we can quantify the probability for every number of rolls (1 to ∞) that it might take. For example, to calculate the probability of getting at new side on <i>exactly</i> the second roll, you combine the probability of getting a new side (83 percent) <i>conditioned on</i> the probability of <i>not</i> getting it on the first roll, (17 percent). This---the conditional probability---is simply the product of 83 percent and 17 percent, which rounds to 14 percent. 
 
 ```{r}
 (5/6 * 1/6) |>
   round(2)
 ```
 
-The probability of getting the second new side on the <i>third</i> roll is the probability of getting a new face, conditioned on the probability of not getting it on the first two rolls. The conditional probability is the product of all three, which rounds to 2 percent. 
+The probability of getting the second new side on the <i>third</i> roll is the probability of getting a new side, conditioned on the probability of not getting it on the first two rolls. The conditional probability is the product of the three individual probabilities, which rounds to 2 percent. 
 
 ```{r}
-(5/6 * 1/6 * 1/6) |>
+(5/6 * (1/6 * 1/6)) |>
   round(2)
 ```
 The geometric distribution generalizes this concept, allowing us to calculate the probability of success after any number (<i>k</i>) of attempts, given a fixed probability. 
 
-In this case, we have six fixed probabilities (i.e., 6/6, 5/6, ..., 1/6), one for each new side, and we can use the geometric distribution to calculate the probability of getting each new side after <i>k</i> rolls: 
+In this case, we have six fixed probabilities, one for each new side, and we can use the geometric distribution to calculate the probability of getting each new side after <i>k</i> rolls: 
 
 ```{r}
-# number of sides
-n <- 6
-
-# number of rolls that we'll evaluate for each new side
+# number of rolls to evaluate for each new side
 k_range <- 1:10
 
 # the first parameter of R's dgeom() function is the number 
 # of failures, so success on the first try would be zero 
-# failures, so subtract 1 from the range
+# failures, which means we have to subtract 1 from our range
 k_range <- k_range - 1 
 
 # calculate the full range probabilities for n sides   
@@ -111,7 +110,7 @@ probability_matrix <- matrix(n:1, nrow = n) |>
 probability_matrix |> 
   round(2) 
 ```
-Plotting the geometric distribution for each new side makes it easier to see that, as a "collection" grows, the number of rolls that it will likely take for each new face increases. 
+Plotting the geometric distribution for each new side makes it easier to see that, as a "collection" grows, the probability of getting a new side on the first roll decreases, which means that the number of rolls that it will likely take for each new side increases. 
 
 ```{r echo = FALSE}
 # convert matrix to a long data frame
@@ -122,7 +121,7 @@ probability_df <- as.data.frame(probability_matrix) |>
   values_to = 'probability') |>
   mutate(roll_cnt = as.numeric(substring(roll_cnt, 2)))
 
-# plot the probabilities for each new face
+# plot the probabilities for each new side
 ggplot(probability_df, aes(x = roll_cnt, y = probability, fill = as.factor(side_cnt))) +
   geom_col() +
   facet_grid(. ~ side_cnt) +
@@ -135,7 +134,7 @@ Conveniently, the average number of rolls that it takes to get each new side is 
 
 The inverse of the probability for the first side is 6/6, so the average number of rolls is 1. The inverse of the probability for the second side is 6/5, so the average number of rolls is 1.2. 
 
-And since each new face is an independent effort, we can add these averages to calculate the average number of rolls that it will take to get all six sides. 
+And since each new side is an independent effort, we can add these averages to calculate the average number of rolls that it will take to get all six sides. 
 
 ```{r}
 6/6 + 6/5 + 6/4 + 6/3 + 6/2 + 6/1
@@ -143,7 +142,7 @@ And since each new face is an independent effort, we can add these averages to c
 ```
 Expressed as a formula, the pattern can be generalized to a die of any number (<i>n</i>) of sides:
 
-$n\sum_{1}^{n}\frac{1}{i}$
+$n\sum\limits_{i = 1}^{n}\frac{1}{i}$
 
 ```{r}
 mean_prob <- function(n){
@@ -151,8 +150,9 @@ mean_prob <- function(n){
 }
 
 mean_prob(n)
+
 ```
-This is as far as a lot of candidates will go. But the problem offers  layers of additional complexity.  
+This is as far as a lot of candidates will go, but the problem offers  layers of additional complexity.  
 
 
 ### Monte Carlo simulation
@@ -163,19 +163,19 @@ One way to confirm our expected value is through Monte Carlo simulation. Candida
 # n = number of sides
 # repetitions = number of times to repeat the simulation
 # seed = random seed
-simulation <- function(n = 6, repititions = 1000, rnd_seed = 42) {
+simulation <- function(n = 6, repetitions = 1000, rnd_seed = 42) {
   # create a vector to hold simulation results
-  results <- rep(NA, repititions)
+  results <- rep(NA, repetitions)
   
   # set a seed to ensure the results are repeatable
   set.seed(rnd_seed)
   
   # conduct the simulation
-  for (i in 1:repititions) {
+  for (i in 1:repetitions) {
     # create a vector to track how many times each side is rolled
     die <- rep(0, n)
     
-    # roll the die and keep track of the number of times each side comes up
+    # roll the die and track number of times each side comes up
     # until all sides have come up
     while (any(die == 0)) {
       roll <- sample(n, 1)
@@ -189,13 +189,15 @@ simulation <- function(n = 6, repititions = 1000, rnd_seed = 42) {
   return(results)
 }
 
-results <- simulation(n = 6, repititions = 1000, rnd_seed = 42)
+results <- simulation(n = 6, repetitions = 1000, rnd_seed = 42)
+
 ```
 
 The mean of our simulation should be reasonably close to the result of our formula, which it is. 
 
 ```{r}
 mean(results)
+
 ```
 
 Looking at the distribution of our results as a histogram offers further insight. 
@@ -231,6 +233,7 @@ skew <- function(x, ...) {
 }
 
 skew(results)
+
 ```
 
 As such, the mode---the most common number of times that we'd have to roll a die before getting all six sides---is actually less than 14 or 15. In this case, it's only 10 rolls. 
@@ -240,6 +243,7 @@ table(results) |>
   which.max() |>
   names() |>
   as.numeric()
+
 ```
 
 ### Mean versus mode
@@ -252,7 +256,8 @@ Until we establish an expected value for the mode, we can't trust the result of 
 
 ```{r}
 # repeat the simulation
-results <- simulation(n = 6, repititions = 1000, rnd_seed = 59)
+results <- simulation(n = 6, repetitions = 1000, rnd_seed = 59)
+
 ```
 
 ```{r echo = FALSE}
@@ -271,12 +276,14 @@ ggplot(results_summary, aes(x = number_of_rolls, y = frequency)) +
   geom_col(aes(fill = mode)) + 
   geom_vline(xintercept = 14.7, col = 'black', linetype = 'dotted') + 
   theme(legend.position = "none")
+
 ```
 
 The mean is similar:
 
 ```{r}
 mean(results)
+
 ```
 
 But the mode has increased from 10 to 12:
@@ -286,6 +293,7 @@ table(results) |>
   which.max() |>
   names() |>
   as.numeric()
+
 ```
 
 
@@ -360,7 +368,7 @@ tabl <- '
 cat(tabl)
 ```
 
-Even with a computer, the task would be difficult, especially if we went all the up to the max number of rolls from our simulation (51). Fortunately, there's a formula that leverages the principle of inclusion-exclusion to calculate the aggregate probability without having to iterate through the conditional probability of every permutation:
+Even with a computer, the task would be difficult, especially if we went all the way up to the maximum number of rolls from our simulation (<i>k</i> = 51), which has 211,876 permutations. Fortunately, there's a formula that leverages binomial coefficients and the principle of inclusion-exclusion to calculate the aggregate probability without having to iterate through the conditional probability of every permutation:
 
 $P(d,\ k,\ n)\ =\ \frac{\binom{n}{d}}{n^k}\sum\limits_{i\ =\  1}^{d\ -\ 1}{{(-1)}^{i + 1}\binom{d}{i}}{(d\ -\ i)}^{k\ -\ 1}$
 
@@ -398,12 +406,12 @@ prob_d_k_exact(6, 6:7, 6) |>
   round(3)
 
 ```
-The results of the formula for six- and seven-roll permutations (0.015, 0.039) are the same as the brute-force results that we calculated earlier. 
+The results of the formula for six- and seven-roll permutations (0.015 and 0.039, respectively) are the same as the brute-force results that we calculated earlier. 
 
-Although we can calculate the probability for any number of rolls, we know that the mode is somewhere between 6 (the minimum number of rolls) and 14.7 (which we can round to 14, because the mode is less than the mean). We simply need to identify the number of rolls with the highest probability over that narrow range:  
+Although we can calculate the probability for any number of rolls, we know that the mode is somewhere between 6 (the minimum number of rolls) and 14.7 (which we can round to 14, because the mode will be less than the mean). We simply need to identify the number of rolls with the highest probability over that narrow range:  
 
 ```{r}
-# find the probabilities for getting all six sides after 6 - 14 rolls
+# probabilities for getting all six sides after 6 - 14 rolls
 find_mode <- prob_d_k_exact(6, 6:14, 6) 
 names(find_mode) <- 6:14
 
@@ -415,7 +423,7 @@ which.max(find_mode) |>
 ```
 Now we know: The average number of rolls that it takes to get all six sides of a die is 14.7, but the most likely number of rolls is 11.
 
-### Alternative approaches
+### Alternative to teasers
 
 Ostensibly, the coupon collector's problem is an excellent interview question because it tests candidates' knowledge of multiple fundamentals:
 
@@ -428,7 +436,7 @@ Ostensibly, the coupon collector's problem is an excellent interview question be
 
 Some might assert that solving the problem is a min-bar expectation for data scientists. 
 
-As I suggested earlier, however, problems like these aren't particularly good at vetting data science candidates.  First and foremost, they test only a narrow range of candidates' skills and abilities. Moreover, the expectation that candidates can solve teaser-like problem in an hour (or less) is questionable. Even though Medium estimates that this article takes about ten minutes to read, there's a big difference between describing a solution and coming up with one. In fact, there's a real risk that interviewers---who already know the solutions---might trivialize the difficulty in finding them for the first time (particularly in an interview setting, where time is limited and the pressure is high) and evaluate candidates too harshly. 
+As I suggested earlier, however, problems like these aren't particularly good at vetting data science candidates.  First and foremost, they test only a narrow range of candidates' skills and abilities. Moreover, the expectation that candidates can solve teaser-like problem in an hour (or less) is questionable. Even though Medium estimates that this article takes about 14 minutes to read, there's a big difference between describing a solution and coming up with one. In fact, there's a real risk that interviewers---who already know the solutions---might trivialize the difficulty in finding them for the first time (particularly in an interview setting, where time is limited and the pressure is high) and evaluate candidates too harshly. 
 
 An alternative approach is the so-called behavioral interview, which focuses much more on candidates and their personal experiences. Interviews typically start with an open-ended prompt: "Tell me about your most recent data science project." There is no right or wrong answer---candidates can respond however they'd like---so there's none of pass/fail anxiety that teaser-like problems create. But because candidates have so much latitude, they often end up revealing much more about themselves: the types of work they find most engaging, how (and how well) they work with others, their ability to explain complex topics clearly, and more. 
 
@@ -436,6 +444,6 @@ The challenge for interviewers is that <i>they</i> need to be familiar with a br
 
 A middle ground is to present candidates with stripped down versions of problems they'd likely face in their day-to-day jobs. The problems need to be simple enough that candidates can solve them in an hour (or an evening), but complex enough to test candidates' skills and abilities. 
 
-Anytime we use the middle-ground approach at Microsoft, we make it clear that don't expect on-the-spot answers. That's why we give candidates ample time to come up with solutions. We also make it a point to emphasize that there are no right or wrong answers, in part to mitigate any pass/fail anxiety, but also to suggest that the answers are somewhat beside the point. We're much more interested in seeing candidates demonstrate the skills that will be critical to their long-term success. The fact that candidates are all asked to solve the same problem makes it a little easier for us to compare approaches. As a bonus, problems like these give us the opportunity to evaluate candidates' familiarity with our business model (i.e., a subscription-based consumption model), their abilities to solve novel problems (because candidates won't have seen them before), and candidates' abilities to identify salient insights and explain their process. 
+When we use the middle-ground approach at Microsoft, we try to make it clear that we don't expect on-the-spot answers. That's why we give candidates ample time to come up with solutions. We also make it a point to emphasize that there are no right or wrong answers, in part to mitigate any pass/fail anxiety, but also to suggest that the answers are somewhat beside the point. We're much more interested in seeing candidates demonstrate the skills that will be critical to their long-term success. The fact that candidates are all asked to solve the same problem makes it a little easier for us to compare approaches. As a bonus, problems like these give us the opportunity to evaluate candidates' familiarity with our business model (i.e., a subscription-based consumption model), their abilities to solve novel problems (because candidates won't have seen them before), and candidates' abilities to identify salient insights and explain their process. 
 
-No matter the approach, interviews are often the last---and best---opportunity that teams have to evaluate candidates before making hire/no-hire decisions. To ensure they're selecting the highest caliber talent, organizations need to be thoughtful about their interview strategies. Questions based on candidates' own experiences (or the organization's) will be closer the real-world responsibilities of any role, making it easier for organizations to explore the strengths and weaknesses of candidates as practicing data scientists, which will be much more relevant than candidates' ability to solve classic statistics problems. 
+No matter the approach, interviews are often the last---and best---opportunity that teams have to evaluate candidates before making hire/no-hire decisions. For organizations to ensure they're selecting the highest caliber talent, they need to be thoughtful about their interview strategies. Questions based on candidates' own experiences (or the organization's) will be closer to the real-world responsibilities of any role, making it easier for organizations to explore the strengths and weaknesses of candidates as practicing data scientists, which will be much more relevant than candidates' ability to solve classic statistics problems. 
