@@ -6,51 +6,45 @@ library(tidyr)
 library(dplyr)
 
 # monte carlo simulation
-# number of reps
-repititions <- 1000
-
-# size of population
-n <- 6
-
-# create a vector for the simulation results
-results <- rep(NA, repititions)
-
-# conduct the simulation
-set.seed(16)
-
-for (i in 1:repititions) {
-
-  # create a data frame that tracks number of times each side is rolled
-  die <- data.frame(pips = 1:n,
-                    cnt = 0)
+# n = number of sides
+# repetitions = number of times to repeat the simulation
+# seed = random seed
+simulation <- function(n = 6, repetitions = 1000, rnd_seed = 42) {
+  # create a vector to hold simulation results
+  results <- rep(NA, repetitions)
   
-  # roll the die and keep track of the number of times each side comes up
-  # until all sides have come up
-  while (any(die$cnt == 0)) {
-    roll <- sample(die$pips, 1)
-    die$cnt[roll] <- die$cnt[roll] + 1
+  # set a seed to ensure the results are repeatable
+  set.seed(rnd_seed)
+  
+  # conduct the simulation
+  for (i in 1:repetitions) {
+    # create a vector to track how many times each side is rolled
+    die <- rep(0, n)
+    
+    # roll the die and track number of times each side comes up
+    # until all sides have come up
+    while (any(die == 0)) {
+      roll <- sample(n, 1)
+      die[roll] <- die[roll] + 1
+    }
+    
+    # record the result (i.e., the total number of rolls)
+    results[i] <- sum(die)
   }
   
-  # record the total number of rolls
-  results[i] <- sum(die$cnt)
+  return(results)
 }
 
-# look at the probability density function (continuous)
-#pdf <- density(results)
-#plot(pdf)
+n <- 6
+results <- simulation(n, repetitions = 1000, rnd_seed = 42)
 
-# the 50% answer
+# the mean 
 (continous_mean <- mean(results))
-#continuous_mode <- pdf$x[which.max(pdf$y)]
-#max(pdf$y)
 
 # std error of the mean 
 # see 'conf_int.R'
 #std_err <- sd(results) / sqrt(repititions)
 
-# mode of the pdf, the most likely number of rolls needed 
-#continuous_mode
-#which.max(table(results))
 
 # look at the distribution of results as a histogram 
 hist(results, breaks = max(results) - n)
@@ -72,11 +66,11 @@ discrete_mode <- table(results) |>
   names() |>
   as.numeric()
 
-discrete_mean <- quantile(results, probs = 0.5) |>
+discrete_median <- quantile(results, probs = 0.5) |>
   as.numeric()
 
 sum(results <= discrete_mode) / length(results)
-sum(results <= discrete_mean) / length(results)
+sum(results <= discrete_median) / length(results)
 
 max(results)
 min(results)
@@ -162,24 +156,24 @@ ggplot(pmf_df, aes(x = roll_cnt, y = probability, fill = as.factor(face_cnt))) +
   facet_grid(. ~ face_cnt)
 
 
-######################
-# Calculate the mode # 
-######################
-
-# see https://math.stackexchange.com/questions/1219107/conditional-probability-in-geometric-distribution#:~:text=%20Conditional%20Probability%20in%20Geometric%20Distribution%20%201,can%20take%20tests%20until%20getting%20licensed.%20More%20
+#######################################
+# Brute-force calculation of the mode # 
+#######################################
 
 # this only works for n = 6
 # a more generalized solution is required for other values
 
-# Our mean is 15, and since the mode will be less than the median, the mode 
-# will occur at <= 15 total rolls. Given 15 total rolls and 6 faces, the 
+# Our mean is 14.7, and since the mode will be less than the median, the mode 
+# will occur at < 15 total rolls. Given 15 total rolls and 6 faces, the 
 # we most times that we can roll to find any one pip is 10 
 # (e.g., 1, 1, 1, 1, 1, 10), so we can shift 1:10 to 0:9 and use regular 
 # base-10 numbers as our indices to permutations. Using the same example, 
 # the shifted pip counts would be 0, 0, 0, 0, 0, 9, and the max value is 
 # likewise shifted by 6 (i.e., once for each pip). 
+
 # Finally, since the first pip is always found on the first roll, we only 
 # need to look at numbers 5-digit numbers. 
+
 # Find all permutations of a 5-digit base-10 numbers that add up to <= 9
 
 # permutations between 6 and 15 (the ceiling of the mean)
@@ -324,7 +318,7 @@ prob_d_k_sum <- function(d, k, n){
 prob_d_k_sum <- Vectorize(prob_d_k_sum)
 
 
-# test that formulas work 
+# test that the formula works 
 d <- 4
 k <- 16
 n <- 6
@@ -358,9 +352,9 @@ prob_d_k_exact(n, floor(mean_approx(n)):ceiling(mean_prob(n)), n) #|> which.max(
 permutations_d(1:n-1, n, discrete_mode)
 
 
-#####################################################
-## how many permutations add up to specific number ##
-#####################################################
+######################################################
+## how many permutations add up to specific number? ##
+######################################################
 
 # the number of permutations that add up to a fixed number rolls
 # where 
@@ -393,9 +387,8 @@ k <- 7
 # so subtract 1 from both k and n
 cnt_recursive(k - 1, n - 1) 
 
-data.frame(k = c(6:14, 51)) |>
+data.frame(k = c(6:14)) |>
   mutate(perms = cnt_recursive(k - 1, n - 1))
 
 k <- 51
 cnt_recursive(k - 1, n - 1) 
-
